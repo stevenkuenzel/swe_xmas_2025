@@ -113,6 +113,30 @@
           opacity: 0;
         }
       }
+
+      /* CRT Power Off Animation */
+      @keyframes turn-off {
+        0% {
+          transform: scale(1, 1.3) translate3d(0, 0, 0);
+          filter: brightness(1);
+          opacity: 1;
+        }
+        60% {
+          transform: scale(1.3, 0.001) translate3d(0, 0, 0);
+          filter: brightness(10);
+        }
+        100% {
+          animation-timing-function: cubic-bezier(0.755, 0.05, 0.855, 0.06);
+          transform: scale(0, 0.001) translate3d(0, 0, 0);
+          opacity: 0;
+        }
+      }
+
+      .power-off {
+        animation: turn-off 0.55s cubic-bezier(0.23, 1, 0.32, 1);
+        animation-fill-mode: forwards;
+        background-color: #000;
+      }
     </style>
   </head>
   <body>
@@ -237,11 +261,38 @@
         osc.stop(t + 0.4);
       }
 
+      // Finally: Plays a shutdown sound.
+      function playShutdownSound() {
+        if (!audioCtx) return;
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = "sawtooth";
+        // Pitch Drop: 800 to 50Hz
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.exponentialRampToValueAtTime(10, t + 0.5);
+
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(t);
+        osc.stop(t + 0.5);
+      }
+
       // Prepare the audio object.
       if (xmasSongBase64) {
         bgMusic = new Audio(xmasSongBase64);
         bgMusic.loop = false;
         bgMusic.volume = 0.5;
+
+        bgMusic.onended = function () {
+          playShutdownSound(); // When music ends...
+          document.body.classList.add("power-off"); // shut down the system.
+        };
       }
 
       // ... and draw a beautiful tree.
@@ -492,8 +543,6 @@
         // Start the terminal simulation.
         runTerminal(terminalDiv);
       }
-
-      // let lineIndex = 0;
 
       async function typeWriter(text, element) {
         for (let i = 0; i < text.length; i++) {
